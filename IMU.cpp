@@ -513,9 +513,9 @@ else if  ((f.SONAR_MODE || f.LIDAR_MODE) && f.BARO_MODE) {
           //Hand over new value
           BaroPID = (int) Output;    
                       
-          debug[0] = BaroPID; 
-          debug[1] = alt.EstAlt;
-          debug[2] = AltHold;//lidarAlt;
+   //       debug[0] = BaroPID; 
+   //       debug[1] = alt.EstAlt;
+   //       debug[2] = AltHold;//lidarAlt;
           
         }
         else { //Absolute_Alt Mode

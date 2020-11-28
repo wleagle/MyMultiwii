@@ -73,7 +73,7 @@
 
   /**********************************  I2C speed for old WMP config (useless config for other sensors)  *************/
     //#define I2C_SPEED 100000L     //100kHz normal mode, this value must be used for a genuine WMP
-    #define I2C_SPEED 400000L   //400kHz fast mode, it works only with some WMP clones
+    #define I2C_SPEED 300000L   //400kHz fast mode, it works only with some WMP clones
 
   /***************************    Internal i2c Pullups   ********************************/
     /* enable internal I2C pull ups (in most cases it is better to use external pullups) */
@@ -126,7 +126,7 @@
       //#define CRIUS_LITE      // Crius MultiWii Lite
       //#define CRIUS_SE        // Crius MultiWii SE
       //#define CRIUS_SE_v2_0   // Crius MultiWii SE 2.0 with MPU6050, HMC5883 and BMP085
-	  //#define RCTIMER_CRIUS_SE_v2_0 // RCTimer CRIUS v2 AIOP with MPU6050, HMC5883 and MS561101BA
+	    //#define RCTIMER_CRIUS_SE_v2_0 // RCTimer CRIUS v2 AIOP with MPU6050, HMC5883 and MS561101BA
       //#define OPENLRSv2MULTI  // OpenLRS v2 Multi Rc Receiver board including ITG3205 and ADXL345
       //#define BOARD_PROTO_1   // with MPU6050 + HMC5883L + MS baro
       //#define BOARD_PROTO_2   // with MPU6050 + slave  MAG3110 + MS baro
@@ -134,6 +134,7 @@
       //#define GY_85           // Chinese 9 DOF with  ITG3205 ADXL345 HMC5883L LLC
       //#define GY_86           // Chinese 10 DOF with  MPU6050 HMC5883L MS5611, LLC
       //#define GY_88 // Chinese 10 DOF with MPU6050 HMC5883L BMP085, LLC
+      #define GY_91    // Chinese 10 DOF with MPU9250 BMP2850, LLC
       //#define GY_521          // Chinese 6  DOF with  MPU6050, LLC
       //#define INNOVWORKS_10DOF // with ITG3200, BMA180, HMC5883, BMP085 available here http://www.diymulticopter.com
       //#define INNOVWORKS_6DOF // with ITG3200, BMA180 available here http://www.diymulticopter.com
@@ -154,7 +155,7 @@
       //#define HK_MultiWii_328P   // Also labeled "Hobbybro" on the back.  ITG3205 + BMA180 + BMP085 + NMC5583L + DSM2 Connector (Spektrum Satellite)  
       //#define RCNet_FC           // RCNet FC with MPU6050 and MS561101BA  http://www.rcnet.com
       //#define RCNet_FC_GPS       // RCNet FC with MPU6050 + MS561101BA + HMC5883L + UBLOX GPS http://www.rcnet.com
-      #define FLYDU_ULTRA        // MEGA+10DOF+MT3339 FC
+      //#define FLYDU_ULTRA        // MEGA+10DOF+MT3339 FC
       //#define DIYFLYING_MAGE_V1  // diyflying 10DOF mega board with MPU6050 + HMC5883L + BMP085 http://www.indoor-flying.hk
       //#define MultiWii_32U4_SE         // Hextronik MultiWii_32U4_SE
       //#define MultiWii_32U4_SE_no_baro // Hextronik MultiWii_32U4_SE without the MS561101BA to free flash-memory for other functions
@@ -214,8 +215,22 @@
       //#define SRF08
       //#define SRF10
       //#define SRF23
-      #define MB1232
-      #define SONAR_OFFSET 15
+      //#define MB1232
+      #define GY_US42v2
+        
+      // SONAR!! http://www.multiwii.com/forum/viewtopic.php?f=7&t=1033&start=170#p36603
+      /* Generic sonar: hc-sr04, srf04, dyp-me007, all generic sonar with echo/pulse pin
+      default pulse is PH6/12, echo is PB4/11
+      */
+      //#define SONAR_GENERIC_ECHOPULSE 
+      #define SONAR_GENERIC_SCALE 58        //scale for ranging conversion (hcsr04 is 58)
+      #define SONAR_GENERIC_MAX_RANGE 600     //cm (could be more)
+      #define SONAR_GENERIC_TRIGGER_PIN 12    // motor 12
+      #define SONAR_GENERIC_ECHO_PIN 11     // motor 11
+
+
+      
+      #define SONAR_OFFSET 0
       #define SONAR_TILT_CORRECTION
       #define SONAR_LPF_FACTOR 0.9f             // do not oversmooth in order to avoid a bumpy althold; 0.5 = a new value makes 50% of the smoothed value
 
@@ -324,7 +339,7 @@
 
   /***********************          Cam Stabilisation             ***********************/
     /* The following lines apply only for a pitch/roll tilt stabilization system. Uncomment the first or second line to activate it */
-    //#define SERVO_MIX_TILT
+    #define SERVO_MIX_TILT
     //#define SERVO_TILT
 
     /* camera trigger function : activated via Rc Options in the GUI, servo output=A2 on promini */
@@ -444,7 +459,7 @@ At this moment you can use this function only with WinGUI 2.3 release. MultiWiiC
          For MEGA boards, attach sat grey wire to RX1, pin 19. Sat black wire to ground. Sat orange wire to Mega board's 3.3V (or any other 3V to 3.3V source).
          For PROMINI, attach sat grey to RX0.  Attach sat black to ground. */
       //#define SPEKTRUM 1024
-      #define SPEKTRUM 2048
+      //#define SPEKTRUM 2048
       //#define RX_SERIAL_PORT 1    // Forced to 0 on Pro Mini and single serial boards; Set to your choice of 0, 1, or 2 on any Mega based board (defaults to 1 on Mega).
       //**************************
       // Defines that allow a "Bind" of a Spektrum or Compatible Remote Receiver (aka Satellite) via Configuration GUI.
@@ -463,7 +478,7 @@ At this moment you can use this function only with WinGUI 2.3 release. MultiWiiC
       /* The following line apply only for Futaba S-Bus Receiver on MEGA boards or PROMICRO boards.
          You have to invert the S-Bus-Serial Signal e.g. with a Hex-Inverter like IC SN74 LS 04 */
       //#define SBUS     PITCH,YAW,THROTTLE,ROLL,AUX1,AUX2,AUX3,AUX4,8,9,10,11,12,13,14,15,16,17  // dsm2 orangerx
-      //#define SBUS     ROLL,PITCH,THROTTLE,YAW,AUX1,AUX2,AUX3,AUX4,8,9,10,11,12,13,14,15,16,17  // T14SG
+      #define SBUS     ROLL,PITCH,THROTTLE,YAW,AUX1,AUX2,AUX3,AUX4,8,9,10,11,12,13,14,15,16,17  // T14SG
       //#define RX_SERIAL_PORT 1
       #define SBUS_MID_OFFSET 988 //SBUS Mid-Point at 1500
 
@@ -567,8 +582,8 @@ At this moment you can use this function only with WinGUI 2.3 release. MultiWiiC
 
   /******                Serial com speed    *********************************/
     /* This is the speed of the serial interfaces */
-    #define SERIAL0_COM_SPEED 57600
-    #define SERIAL1_COM_SPEED 57600
+    #define SERIAL0_COM_SPEED 115200
+    #define SERIAL1_COM_SPEED 100000
     #define SERIAL2_COM_SPEED 115200
     #define SERIAL3_COM_SPEED 115200
 
@@ -735,12 +750,12 @@ At this moment you can use this function only with WinGUI 2.3 release. MultiWiiC
        in NMEA mode the GPS must be configured to output GGA and RMC NMEA sentences (which is generally the default conf for most GPS devices)
        at least 5Hz update rate. uncomment the first line to select the GPS serial port of the arduino */
        
-    //#define GPS_SERIAL 2         // should be 2 for flyduino v2. It's the serial port number on arduino MEGA
+    #define GPS_SERIAL 2         // should be 2 for flyduino v2. It's the serial port number on arduino MEGA
                                    // must be 0 for PRO_MINI (ex GPS_PRO_MINI)
                                    // note: Now a GPS can share MSP on the same port. The only constrain is to not use it simultaneously, and use the same port speed.
 
     // avoid using 115200 baud because with 16MHz arduino the 115200 baudrate have more than 2% speed error (57600 have 0.8% error)
-    #define GPS_BAUD   57600       // GPS_BAUD will override SERIALx_COM_SPEED for the selected port
+    #define GPS_BAUD   9600       // GPS_BAUD will override SERIALx_COM_SPEED for the selected port
 
    /* GPS protocol 
        NMEA  - Standard NMEA protocol GGA, GSA and RMC  sentences are needed
@@ -749,7 +764,7 @@ At this moment you can use this function only with WinGUI 2.3 release. MultiWiiC
        With UBLOX and MTK_BINARY you don't have to use GPS_FILTERING in multiwii code !!! */
 
     
-    //#define NMEA
+    #define NMEA
     //#define UBLOX
     //#define MTK_BINARY16
     //#define MTK_BINARY19
@@ -1279,4 +1294,3 @@ Also note, that maqgnetic declination changes with time, so recheck your value e
 #pragma endregion
 
 #endif /* CONFIG_H_ */
-

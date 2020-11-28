@@ -1325,6 +1325,17 @@
   #undef INTERNAL_I2C_PULLUPS
 #endif
 
+#if defined(GY_91)  //codes from 4RaspberryPi on tumblr
+  #define MPU6050
+  #define AK8963
+  #define BMP280  
+  #define ACC_ORIENTATION(X, Y, Z)  {imu.accADC[ROLL]  = -X; imu.accADC[PITCH]  = -Y; imu.accADC[YAW]  =  Z;}
+  #define GYRO_ORIENTATION(X, Y, Z) {imu.gyroADC[ROLL] =  Y; imu.gyroADC[PITCH] = -X; imu.gyroADC[YAW] = -Z;}
+  #define MAG_ORIENTATION(X, Y, Z) {imu.magADC[ROLL]  =  Y; imu.magADC[PITCH]  =  X; imu.magADC[YAW]  = -Z;}
+  #undef INTERNAL_I2C_PULLUPS
+#endif
+
+
 #if defined(GY_521)
   #define MPU6050
   #define ACC_ORIENTATION(X, Y, Z)  {imu.accADC[ROLL]  = -X; imu.accADC[PITCH]  = -Y; imu.accADC[YAW]  =  Z;}
@@ -1659,7 +1670,7 @@
   #define ACC 0
 #endif
 
-#if defined(HMC5883) || defined(HMC5843) || defined(AK8975) || defined(MAG3110)
+#if defined(HMC5883) || defined(HMC5843) || defined(AK8975) || defined(MAG3110) || defined(AK8963)
   #define MAG 1
 #else
   #define MAG 0
@@ -1671,7 +1682,7 @@
   #define GYRO 0
 #endif
 
-#if defined(BMP085) || defined(MS561101BA)
+#if defined(BMP085) || defined(BMP280) || defined(MS561101BA)
   #define BARO 1
 #else
   #define BARO 0
@@ -1695,7 +1706,7 @@
   #define LIDAR 0
 #endif
 
-#if defined(SRF02) || defined(SRF08) || defined(SRF10) || defined(SRC235) || defined(I2C_GPS_SONAR) || defined (MB1232)|| defined(SONAR_GENERIC_ECHOPULSE)
+#if defined(SRF02) || defined(SRF08) || defined(SRF10) || defined(SRC235) || defined(I2C_GPS_SONAR) || defined(MB1232)|| defined(GY_US42v2) || defined(SONAR_GENERIC_ECHOPULSE)
   #define SONAR 1
 #else
   #define SONAR 0

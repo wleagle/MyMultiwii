@@ -1,4 +1,3 @@
-
 #include "Arduino.h"
 #include "config.h"
 #include "def.h"
@@ -522,6 +521,156 @@ uint8_t Baro_update() {                   // first UT conversion is started in i
   }
 }
 #endif
+
+// ************************************************************************************************************
+// I2C Barometer BOSCH BMP280    (codes from Jovian-Dsouza https://github.com/Jovian-Dsouza/multiwii-firmware )
+// ************************************************************************************************************
+// I2C adress: 0x76 or 0x77 !!!Please make sure you set the correct address (BMP280_ADDR)
+// ************************************************************************************************************
+
+#if defined(BMP280)
+
+#define BMP280_ADDR  0x76 
+#define i2c_read(ack)  (ack) ? i2c_readAck() : i2c_readNak(); 
+
+#define BMP280_CAL_REG_FIRST  0x88
+#define BMP280_CAL_REG_LAST 0xA1
+#define BMP280_CAL_DATA_SIZE  (BMP280_CAL_REG_LAST+1 - BMP280_CAL_REG_FIRST)
+
+#define BMP280_STATUS_REG 0xF3
+#define BMP280_CONTROL_REG  0xF4
+#define BMP280_CONFIG_REG 0xF5
+
+#define BMP280_PRES_REG   0xF7
+#define BMP280_TEMP_REG   0xFA
+#define BMP280_RAWDATA_BYTES  6 // 3 bytes pressure, 3 bytes temperature
+
+int64_t p; //temp variable for calculating pressure  
+uint32_t deadline;
+
+static union _bmp280_cal_union {
+  uint8_t bytes[BMP280_CAL_DATA_SIZE];
+  struct {
+    uint16_t dig_t1;
+    int16_t  dig_t2;
+    int16_t  dig_t3;
+    uint16_t dig_p1;
+    int16_t  dig_p2;
+    int16_t  dig_p3;
+    int16_t  dig_p4;
+    int16_t  dig_p5;
+    int16_t  dig_p6;
+    int16_t  dig_p7;
+    int16_t  dig_p8;
+    int16_t  dig_p9;
+  };
+} bmp280_cal;
+
+/*
+ * read calibration registers
+ */
+static void bmp280_getcalibration(void)
+{
+  memset(bmp280_cal.bytes, 0, sizeof(bmp280_cal));
+
+  i2c_read_reg_to_buf(BMP280_ADDR, 
+    BMP280_CAL_REG_FIRST,
+    bmp280_cal.bytes,
+    BMP280_CAL_DATA_SIZE
+  );
+}
+
+void bmp280_set_ctrl(uint8_t osrs_t, uint8_t osrs_p, uint8_t mode)
+{
+  i2c_writeReg(BMP280_ADDR, BMP280_CONTROL_REG,
+    ((osrs_t & 0x7) << 5) | ((osrs_p & 0x7) << 2) | (mode & 0x3));
+}
+
+void bmp280_set_config(uint8_t t_sb, uint8_t filter, uint8_t spi3w_en)
+{
+  i2c_writeReg(BMP280_ADDR, BMP280_CONFIG_REG,
+    ((t_sb & 0x7) << 5) | ((filter & 0x7) << 2) | (spi3w_en & 1));
+}
+
+#define bmp280_24bit_reg(b1, b2, b3)  ( \
+  ((int32_t)(b1) << 16) \
+  | ((int32_t)(b2) << 8) \
+  | ((int32_t)(b3) ) \
+)
+
+/*  Measures and calculates pressure and temperature
+ *   
+ *  This function updates global variables baroPressure and baroTemperature
+ *  
+ *  baroTemperature unit is 0.01 deg C 
+ *  baroPressure unit is Pa  
+ *   
+ */
+
+void bmp280_measure(void)
+{
+  uint8_t data[BMP280_RAWDATA_BYTES];
+  int32_t temp_raw, pres_raw, t_fine;
+  int64_t var1, var2;
+  i2c_read_reg_to_buf(BMP280_ADDR, BMP280_PRES_REG, data, BMP280_RAWDATA_BYTES);
+  pres_raw = bmp280_24bit_reg(data[0], data[1], data[2]);
+  temp_raw = bmp280_24bit_reg(data[3], data[4], data[5]);
+
+  temp_raw >>= 4;
+  pres_raw >>= 4;
+
+  var1 = ((((temp_raw >> 3) - ((int32_t)bmp280_cal.dig_t1 << 1))) *
+        ((int32_t)bmp280_cal.dig_t2)) >> 11;
+
+  var2 = (((((temp_raw >> 4) - ((int32_t)bmp280_cal.dig_t1)) *
+            ((temp_raw >> 4) - ((int32_t)bmp280_cal.dig_t1))) >>12) *
+          ((int32_t)bmp280_cal.dig_t3)) >> 14;
+
+  t_fine = var1 + var2;
+
+  baroTemperature = (t_fine * 5 + 128) >> 8;
+
+  var1 = ((int64_t)t_fine) - 128000;
+  var2 = var1 * var1 * (int64_t)bmp280_cal.dig_p6;
+  var2 = var2 + ((var1 * (int64_t)bmp280_cal.dig_p5) << 17);
+  var2 = var2 + (((int64_t)bmp280_cal.dig_p4) << 35);
+  var1 = ((var1 * var1 * (int64_t)bmp280_cal.dig_p3) >> 8) +
+         ((var1 * (int64_t)bmp280_cal.dig_p2) << 12);
+  var1 = (((((int64_t)1) << 47) + var1)) * ((int64_t)bmp280_cal.dig_p1) >> 33;
+
+  if (var1 == 0) {
+    return 0; // avoid exception caused by division by zero
+  }
+  p = 1048576 - pres_raw;
+  p = (((p << 31) - var2) * 3125) / var1;
+  var1 = (((int64_t)bmp280_cal.dig_p9) * (p >> 13) * (p >> 13)) >> 25;
+  var2 = (((int64_t)bmp280_cal.dig_p8) * p) >> 19;
+
+  p = ((p + var1 + var2) >> 8) + (((int64_t)bmp280_cal.dig_p7) << 4);
+  baroPressure = p >> 8 ; //baroPressure in Pa
+
+}
+
+void  Baro_init() {
+  bmp280_getcalibration();
+  bmp280_set_config(0, 4, 0); // 0.5 ms standby time, 16x filter, no 3-wire SPI
+  bmp280_set_ctrl(2, 5, 3); // T oversample x2, P over sample x16, normal mode
+  deadline = currentTime+5000;
+}
+
+//return 0: no data available, no computation ;  1: new value available and computation ; 
+  uint8_t Baro_update() {                   
+  if (currentTime < deadline) return 0; 
+  deadline = currentTime+3000; 
+
+  Baro_Common();
+  bmp280_measure();  
+
+  return 1;
+}
+#endif
+
+
 
 // ************************************************************************************************************
 // I2C Barometer MS561101BA
@@ -1196,6 +1345,31 @@ void Device_Mag_getADC() {
   }
 #endif
 
+// ***************************************
+// I2C Compass AK8963  (codes from 4RaspberryPi on tumblr) 
+// ***************************************
+// I2C adress: 0x0C (7bit)
+// ***************************************
+#if defined(AK8963)
+  #define MAG_ADDRESS 0x0C
+  #define MAG_DATA_REGISTER 0x03
+
+  void Mag_init() {
+    delay(100);
+    i2c_writeReg(MAG_ADDRESS,0x0a,0x11); //0x01=AK8975,0x11=AK8963
+    delay(100);
+  }
+
+  void Device_Mag_getADC() {
+    i2c_getSixRawADC(MAG_ADDRESS,MAG_DATA_REGISTER);
+    MAG_ORIENTATION( ((rawADC[1]<<8) | rawADC[0]) /2,
+                     ((rawADC[3]<<8) | rawADC[2]) /2,
+                     ((rawADC[5]<<8) | rawADC[4]) /2);
+    //Start another meassurement
+    i2c_writeReg(MAG_ADDRESS,0x0a,0x11);
+  }
+#endif
+
 // ************************************************************************************************************
 // I2C Gyroscope and Accelerometer MPU6050
 // ************************************************************************************************************
@@ -1408,14 +1582,14 @@ void Gyro_getADC() {
 //
 // specs are here: http://www.meas-spec.com/downloads/MS5611-01BA03.pdf
 // useful info on pages 7 -> 12
-#if defined(SRF02) || defined(SRF08) || defined(SRF10) || defined(SRC235) || defined(MB1232)
+#if defined(SRF02) || defined(SRF08) || defined(SRF10) || defined(SRC235) || defined(MB1232) || defined(GY_US42v2)
 
 // the default address for any new sensor found on the bus
 // the code will move new sonars to the next available sonar address in range of F0-FE so that another
 // sonar sensor can be added again.
 // Thus, add only 1 sonar sensor at a time, poweroff, then wire the next, power on, wait for flashing light and repeat
 #if !defined(SRF08_DEFAULT_ADDRESS) 
-  #define SRF08_DEFAULT_ADDRESS 0x70
+  #define SRF08_DEFAULT_ADDRESS  0x70
 #endif
 
 #if !defined(SRF08_RANGE_WAIT) 
@@ -1427,7 +1601,7 @@ void Gyro_getADC() {
 #endif
 
 #if !defined(SRF08_SENSOR_FIRST) 
-    #define SRF08_SENSOR_FIRST    0x79    // the first sensor i2c address (after it has been moved)
+    #define SRF08_SENSOR_FIRST    0x78   // the first sensor i2c address (after it has been moved)
 #endif
 
 #if !defined(SRF08_MAX_SENSORS) 
@@ -1442,7 +1616,7 @@ void Gyro_getADC() {
 #define SRF08_ECHO_RANGE     2
 
 //Commands
-#define MB1232_comm1 0xAA
+#define MB1232_comm1 0xAA  //  GY-US42v2 use the same
 #define MB1232_comm2 0xA5
 
 
@@ -1491,15 +1665,15 @@ uint16_t i2c_readReg16(int8_t addr, int8_t reg) {
 }
 
 void i2c_srf08_change_addr(int8_t current, int8_t moveto) {
-  #if defined(MB1232)
-      i2c_rep_start(SRF08_SENSOR_FIRST+(srf08_ctx.current<<1)<<1);      
+  #if defined(MB1232) || defined(GY_US42v2)
+      i2c_rep_start(current<<1);      
       i2c_write(MB1232_comm1);   delay(30);//Command 1    
       i2c_write(MB1232_comm2);   delay(30);//Command 2    
-      i2c_write(moveto);         delay(30);//Set new address      
+      i2c_write(moveto<<1);         delay(30);//Set new address  
       i2c_stop();
   #else
     // to change a srf08 address, we must write the following sequence to the command register
-    // this sequence must occur as 4 seperate i2c transactions!!
+    // this sequence must occur as 4 seperate i2c transactions!! 
     //   A0 AA A5 [addr]
     i2c_writeReg(current, SRF08_REV_COMMAND, 0xA0);  delay(30);
     i2c_writeReg(current, SRF08_REV_COMMAND, 0xAA);  delay(30);
@@ -1522,31 +1696,30 @@ void i2c_srf08_discover() {
   addr = SRF08_SENSOR_FIRST;
   for(int i=0; i<SRF08_MAX_SENSORS && x!=0xff; i++) {
     // read the revision as a way to check if sensor exists at this location
-    #if defined(MB1232)
-
-      x= i2c_try_readReg(addr, 0x51); //Do we get a repsonse?  
-
+    #if defined(MB1232) || defined(GY_US42v2)
+      x = i2c_try_readReg(addr, 0x51); //Do we get a repsonse?  
     #else
       x = i2c_try_readReg(addr, SRF08_REV_COMMAND);
     #endif
+
     if(x!=0xffff) {
       // detected a sensor at this address
       srf08_ctx.sensors++;
       addr += 2;
-    }
+    }    
   }
   
   // do not add sensors if we are already maxed
   if(srf08_ctx.sensors < SRF08_MAX_SENSORS) {
     // now determine if any sensor is on the 'new sensor' address (srf08 default address)
     // we try to read the revision number
-    #if defined(MB1232)
-      x = i2c_try_readReg(SRF08_DEFAULT_ADDRESS, 0x51);
-      
-      
+    #if defined(MB1232) || defined(GY_US42v2)
+      x = i2c_try_readReg(SRF08_DEFAULT_ADDRESS, 0x51); 
     #else
       x = i2c_try_readReg(SRF08_DEFAULT_ADDRESS, SRF08_REV_COMMAND);
     #endif
+    
+
     if(x!=0xffff) {
       // new sensor detected at SRF08 default address
       i2c_srf08_change_addr(SRF08_DEFAULT_ADDRESS, addr);  // move sensor to the next address
@@ -1589,8 +1762,7 @@ void Sonar_update() {
     #else
     case 2:
       // send a ping to the current sensor
-      #if defined(MB1232)
-
+      #if defined(MB1232) || defined(GY_US42v2)
         i2c_rep_start(SRF08_SENSOR_FIRST+(srf08_ctx.current<<1)<<1); // I2C write direction
         i2c_write(0x51);   //Range Command      
         i2c_stop();           
@@ -1601,12 +1773,10 @@ void Sonar_update() {
       srf08_ctx.deadline += SRF08_RANGE_WAIT;
       break;
     case 3: 
-      #if defined(MB1232)
+      #if defined(MB1232) || defined(GY_US42v2)
         uint8_t b[2];
         i2c_read_to_buf(SRF08_SENSOR_FIRST+(srf08_ctx.current<<1),&b,sizeof(b));
         srf08_ctx.range[srf08_ctx.current] = (b[0]<<8)| b[1];
-//        debug[1] = srf08_ctx.current;
-//        debug[2] = (b[0]<<8)| b[1];
       #else
         srf08_ctx.range[srf08_ctx.current] = i2c_readReg16(SRF08_SENSOR_FIRST+(srf08_ctx.current<<1), SRF08_ECHO_RANGE);
       #endif
@@ -1637,8 +1807,65 @@ sonarAlt = srf08_ctx.range[0] - SONAR_OFFSET; //tmp
   #endif  
 }
 #else
+#if defined(SONAR_GENERIC_ECHOPULSE)
+// ************************************************************************************************************
+// Generic Sonar Support
+// ************************************************************************************************************
+volatile unsigned long SONAR_GEP_startTime = 0;
+volatile unsigned long SONAR_GEP_echoTime = 0;
+volatile static int32_t  tempSonarAlt = 0;
+
+void Sonar_init() {
+  SONAR_GEP_EchoPin_PCICR;
+  SONAR_GEP_EchoPin_PCMSK;
+  SONAR_GEP_EchoPin_PINMODE_IN;
+  SONAR_GEP_TriggerPin_PINMODE_OUT;
+}
+
+void Sonar_update() {
+  sonarAlt = 1 + tempSonarAlt;
+  #ifdef SONAR_TILT_CORRECTION
+      float temp = cos((float(att.angle[1])/10)*0.0174532925f) * cos((float(att.angle[0])/10)*0.0174532925f);           
+      
+      temp = max(temp+0.05, 0.707);
+      temp = constrain(temp,0.707,1.0);
+      temp = (float)sonarAlt * temp;
+      if(temp<sonarAlt) sonarAlt = temp; //CB
+      
+      /* Alternativ
+      int16_t tiltAngle = max(abs(angle[ROLL]), abs(angle[PITCH]));
+       if (tiltAngle > 250)
+          sonarAlt = -1;
+      else
+          sonarAlt = sonarAlt * (900.0f - tiltAngle) / 900.0f;
+      */
+  #endif  
+
+
+  
+  SONAR_GEP_TriggerPin_PIN_LOW;
+  delayMicroseconds(2);
+  SONAR_GEP_TriggerPin_PIN_HIGH;
+  delayMicroseconds(10);
+  SONAR_GEP_TriggerPin_PIN_LOW;
+}
+
+ISR(SONAR_GEP_EchoPin_PCINT_vect) {
+  if (SONAR_GEP_EchoPin_PIN & (1 << SONAR_GEP_EchoPin_PCINT)) {
+    SONAR_GEP_startTime = micros();
+  }
+  else {
+    SONAR_GEP_echoTime = micros() - SONAR_GEP_startTime;
+    if (SONAR_GEP_echoTime <= SONAR_GENERIC_MAX_RANGE*SONAR_GENERIC_SCALE)
+      tempSonarAlt = SONAR_GEP_echoTime / SONAR_GENERIC_SCALE;
+    else
+      tempSonarAlt = -1;
+  }
+}
+#else
 inline void Sonar_init() {}
 void Sonar_update() {}
+#endif
 #endif
 
 
@@ -1758,6 +1985,3 @@ void initSensors() {
     if (i2c_errors_count == 0) break; // no error during init => init ok
   }
 }
-
-
-
