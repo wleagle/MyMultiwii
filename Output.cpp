@@ -1444,14 +1444,18 @@ void mixTable() {
 
   /************************************************************************************************************/
   /****************************                Cam stabilize Servos             *******************************/
+  #define LOWPASSFILTER(OLDVALUE,VALUE,FILTER) ((VALUE*(8-FILTER)+OLDVALUE*FILTER)/8)
+  #define TILT_FILTER 7   
 
   #if defined(SERVO_TILT)
-    servo[0] = get_middle(0);
-    servo[1] = get_middle(1);
+    int16_t s0 = get_middle(0);
+    int16_t s1 = get_middle(1);
     if (rcOptions[BOXCAMSTAB]) {
-      servo[0] += ((int32_t)conf.servoConf[0].rate * att.angle[PITCH]) /50L;
-      servo[1] += ((int32_t)conf.servoConf[1].rate * att.angle[ROLL])  /50L;
+      s0 += ((int32_t)conf.servoConf[0].rate * att.angle[PITCH]) /50L;
+      s1 += ((int32_t)conf.servoConf[1].rate * att.angle[ROLL])  /50L;
     }
+    servo[0]=LOWPASSFILTER(servo[0],s0,TILT_FILTER);
+    servo[1]=LOWPASSFILTER(servo[1],s1,TILT_FILTER);
   #endif
 
   #ifdef SERVO_MIX_TILT

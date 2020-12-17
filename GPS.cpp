@@ -1034,15 +1034,20 @@ bool GPS_newFrame(uint8_t c) {
   static uint8_t param = 0, offset = 0, parity = 0;
   static char string[15];
   static uint8_t checksum_param, frame = 0;
-
+  
   if (c == '$') {
     param = 0; offset = 0; parity = 0;
   } else if (c == ',' || c == '*') {
     string[offset] = 0;
     if (param == 0) { //frame identification
       frame = 0;
-      if (string[0] == 'G' && string[1] == 'P' && string[2] == 'G' && string[3] == 'G' && string[4] == 'A') frame = FRAME_GGA;
+      if (string[0] == 'G' && string[1] == 'P' && string[2] == 'G' && string[3] == 'G' && string[4] == 'A') frame = FRAME_GGA; 
       if (string[0] == 'G' && string[1] == 'P' && string[2] == 'R' && string[3] == 'M' && string[4] == 'C') frame = FRAME_RMC;
+
+      #if defined(ATGM336H)
+        if (string[0] == 'G' && string[1] == 'N' && string[2] == 'G' && string[3] == 'G' && string[4] == 'A') frame = FRAME_GGA; 
+        if (string[0] == 'G' && string[1] == 'N' && string[2] == 'R' && string[3] == 'M' && string[4] == 'C') frame = FRAME_RMC;     
+      #endif
     } else if (frame == FRAME_GGA) {
       if      (param == 2)                     {GPS_coord[LAT] = GPS_coord_to_degrees(string);}
       else if (param == 3 && string[0] == 'S') GPS_coord[LAT] = -GPS_coord[LAT];
@@ -1056,6 +1061,7 @@ bool GPS_newFrame(uint8_t c) {
       else if (param == 8)                     {GPS_ground_course = grab_fields(string,1); }                 //ground course deg*10 
     }
     param++; offset = 0;
+
     if (c == '*') checksum_param=1;
     else parity ^= c;
   } else if (c == '\r' || c == '\n') {
@@ -1069,7 +1075,7 @@ bool GPS_newFrame(uint8_t c) {
   } else {
      if (offset < 15) string[offset++] = c;
      if (!checksum_param) parity ^= c;
-  }
+  }  
   return frameOK && (frame==FRAME_GGA);
 }
 #endif //NMEA

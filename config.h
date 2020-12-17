@@ -254,15 +254,17 @@
  	 ADNS-3080 connect and define pins: OF_SCLK, OF_MISO, OF_MOSI, OF_NCS, OF_RESET (optional)      */
   
          #define OPTFLOW 3080
+
+         #define OF_DEBUG;
          
          //Definition of Pins
          #define OF_SCLK 52
          #define OF_MISO 50
          #define OF_MOSI 51
          #define OF_NCS  33
-         //#define OF_RESET 4
+         #define OF_RESET 4
          //Board Orientation (Default mounting is lens pointing down, pins forward)
-         #define FORCE_OPT_ORIENTATION(X, Y)  {optflow_orientation[0] = sum_dx; optflow_orientation[1] = sum_dy;} //Default Mounting
+         #define FORCE_OPT_ORIENTATION(X, Y)  {sum_dx = Y; sum_dy = -X;} //Default Mounting
          //Controller Settings
          #define OF_FOCAL_DIST 8
          #define OF_DEADBAND 20  //was 15
@@ -275,7 +277,7 @@
          // Pin used to connect to NeoPixel DataLine
          #define PIXEL_PIN 30 //Use any free pin (Pin 31 is normally used for the LED flasher)
          //Sizes of pixel strip
-         #define STRIP_1 12 //Pixel-Ring (Standard Values: 8,12,16)
+         #define STRIP_1 4 //Pixel-Ring (Standard Values: 8,12,16)
 
 
       /* ADC accelerometer */ // for 5DOF from sparkfun, uses analog PIN A1/A2/A3
@@ -339,8 +341,8 @@
 
   /***********************          Cam Stabilisation             ***********************/
     /* The following lines apply only for a pitch/roll tilt stabilization system. Uncomment the first or second line to activate it */
-    #define SERVO_MIX_TILT
-    //#define SERVO_TILT
+    //#define SERVO_MIX_TILT
+    #define SERVO_TILT
 
     /* camera trigger function : activated via Rc Options in the GUI, servo output=A2 on promini */
     // trigger interval can be changed via (*GUI*) or via AUX channel
@@ -584,7 +586,7 @@ At this moment you can use this function only with WinGUI 2.3 release. MultiWiiC
     /* This is the speed of the serial interfaces */
     #define SERIAL0_COM_SPEED 115200
     #define SERIAL1_COM_SPEED 100000
-    #define SERIAL2_COM_SPEED 115200
+    #define SERIAL2_COM_SPEED 57600
     #define SERIAL3_COM_SPEED 115200
 
     /* when there is an error on I2C bus, we neutralize the values during a short time. expressed in microseconds
@@ -750,12 +752,12 @@ At this moment you can use this function only with WinGUI 2.3 release. MultiWiiC
        in NMEA mode the GPS must be configured to output GGA and RMC NMEA sentences (which is generally the default conf for most GPS devices)
        at least 5Hz update rate. uncomment the first line to select the GPS serial port of the arduino */
        
-    #define GPS_SERIAL 2         // should be 2 for flyduino v2. It's the serial port number on arduino MEGA
+    #define GPS_SERIAL 2        // should be 2 for flyduino v2. It's the serial port number on arduino MEGA
                                    // must be 0 for PRO_MINI (ex GPS_PRO_MINI)
                                    // note: Now a GPS can share MSP on the same port. The only constrain is to not use it simultaneously, and use the same port speed.
 
     // avoid using 115200 baud because with 16MHz arduino the 115200 baudrate have more than 2% speed error (57600 have 0.8% error)
-    #define GPS_BAUD   9600       // GPS_BAUD will override SERIALx_COM_SPEED for the selected port
+    #define GPS_BAUD   57600       // GPS_BAUD will override SERIALx_COM_SPEED for the selected port
 
    /* GPS protocol 
        NMEA  - Standard NMEA protocol GGA, GSA and RMC  sentences are needed
@@ -769,6 +771,9 @@ At this moment you can use this function only with WinGUI 2.3 release. MultiWiiC
     //#define MTK_BINARY16
     //#define MTK_BINARY19
     //#define INIT_MTK_GPS        // initialize MTK GPS for using selected speed, 5Hz update rate and GGA & RMC sentence or binary settings
+
+    /* uncomment this if using ATGM336H GPS from china*/
+    #define ATGM336H 
 
 
     /* I2C GPS device made with an independant arduino + GPS device
@@ -962,9 +967,9 @@ Also note, that maqgnetic declination changes with time, so recheck your value e
   /********************************************************************/
   /****                             RSSI                           ****/
   /********************************************************************/
-    //#define RX_RSSI
+    #define RX_RSSI
     //#define RX_RSSI_PIN A3
-    //#define RX_RSSI_CHAN 8   //RSSI injection on selected channel (for PPM, Olrs, SBUS, etc.) (Starts at 0)
+    #define RX_RSSI_CHAN 10   //RSSI injection on selected channel (for PPM, Olrs, SBUS, etc.) (Starts at 0)
 
   /********************************************************************/
   /****                             Buzzer                         ****/

@@ -69,7 +69,7 @@ void average8(struct avg_var8 *avg, int8_t cur, int8_t n) {
 
 
 static uint16_t	scale; // scale factor for raw sensor data
-static int16_t sum_dx = 0, sum_dy = 0; // sensor's row data accumulators
+static int16_t dx_raw = 0, dy_raw=0, sum_dx = 0, sum_dy = 0; // sensor's row data accumulators
 static int16_t EstHVel[2] = {0,0}; // horizontal velocity, cm/sec (constrained -100, 100)
 static int16_t optflow_pos[2] = {0,0};	//displacement (in mm*10 on height 1m)
 
@@ -93,7 +93,7 @@ void	Optflow_update() {
 			prevHeading = att.heading;
 			optflow_start();
 			optflowUse = 1;
-      sum_dx = sum_dy = 0;
+      dx_raw = dy_raw = sum_dx = sum_dy = 0;
 			return;
 		}
 		
@@ -136,10 +136,10 @@ void	Optflow_update() {
 			optflow_angle[axis] = constrain(tmp, -300, 300);
 		}
 
-		#ifdef OF_DEBUG
-			debug[2] = optflow_angle[ROLL]*10;
-			debug[3] = optflow_angle[PITCH]*10;
-		#endif
+//		#ifdef OF_DEBUG
+//			debug[2] = optflow_angle[ROLL]*10;
+//			debug[3] = optflow_angle[PITCH]*10;
+//		#endif
 	}	else if(optflowUse)	{	// switch mode off
       optflow_end();
       optflowErrorI[0]  = 0;
@@ -213,12 +213,12 @@ void	optflow_get_vel()	{
 		prevAngle[axis]	= att.angle[axis];
 	}
 	
-	#ifdef OF_DEBUG
-    debug[0] = EstHVel[axis];
-		debug[1] = optflow_pos[0];
-		debug[2] = avgSqual.res;
-		debug[3] = vel_of[0]*10;
-	#endif
+//	#ifdef OF_DEBUG
+//    debug[0] = EstHVel[axis];
+//		debug[1] = optflow_pos[0];
+//		debug[2] = avgSqual.res;
+//		debug[3] = vel_of[0]*10;
+//	#endif
 }
 
 
@@ -244,7 +244,7 @@ void	optflow_get()	{
         #endif
         
 	// clear accumulated displacement
-	sum_dx = 0;	sum_dy = 0;	
+	dx_raw = 0; dy_raw = 0; sum_dx = 0;	sum_dy = 0;	
 }	
 
 
@@ -300,7 +300,7 @@ void	optflow_get()	{
         for (int i = 0; i <3; i++){
            if( read_register(PRODUCT_ID) == 0x17 ){
              health = true;  // the sensor is of good health
-             debug[3] = 777;
+   //          debug[3] = 777;
              break;
            }
            delay(5);
@@ -363,7 +363,8 @@ void optflow_end() {
   #else
     write_register(MOTION_CLEAR_REG, 1);
   #endif
-
+  dx_raw = 0;
+  dy_raw = 0;
   sum_dx = 0;
   sum_dy = 0;
   EstHVel[0] = 0;
@@ -375,23 +376,25 @@ void optflow_end() {
 /* Read	sensor values.	*/
 void optflow_read() {
 	byte motion;
-	//do {
+	do {
 		motion = read_register(MOTION_REG);
 		if((motion & 0x80) != 0)	{	// motion	detected
 			if(motion & 0x01)	{	// 1600	cpi
-				sum_dx+= (int16_t)((int8_t)read_register(DELTA_X_REG)) * 4;
-				sum_dy+= (int16_t)((int8_t)read_register(DELTA_Y_REG)) * 4;
+				dx_raw+= (int16_t)((int8_t)read_register(DELTA_X_REG)) * 4;
+				dy_raw+= (int16_t)((int8_t)read_register(DELTA_Y_REG)) * 4;
 			}	else { //	400	cpi
-				sum_dx+= (int8_t)read_register(DELTA_X_REG);
-				sum_dy+= (int8_t)read_register(DELTA_Y_REG);
+				dx_raw+= (int8_t)read_register(DELTA_X_REG);
+				dy_raw+= (int8_t)read_register(DELTA_Y_REG);
 			}
 		}
-	//}	while(motion & 0x10);	 //	was 0x20 /; read internal buffers until overflow flag cleared
+	}	while(motion & 0x10);	 //	was 0x20 /; read internal buffers until overflow flag cleared
+
+       FORCE_OPT_ORIENTATION(dx_raw, dy_raw);
 
         #ifdef OF_DEBUG
-           debug[0] = sum_dx;
-           debug[1] = sum_dy;
-           debug[2]=motion;
+          debug[0] = sum_dx;
+          debug[1] = sum_dy;
+          debug[2]=  motion;
         #endif
 }
 
@@ -504,5 +507,3 @@ byte restore_spi_settings()
 
   return temp;
 }
-
-
